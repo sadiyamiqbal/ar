@@ -3,20 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AR Textbook Visualizer - Dark Edition</title>
-    
-    <!-- A-Frame (3D rendering framework) -->
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <!-- MindAR for A-Frame (Image tracking AR) -->
-    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+    <title>AR Textbook Visualizer - SciLens Dark Edition</title>
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Inter Font & Lucide Icons -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        obsidian: '#05070d',
+                        panel: '#0b101d',
+                        neonCyan: '#00f0ff',
+                        neonPurple: '#a855f7',
+                        neonEmerald: '#10b981',
+                        neonRose: '#f43f5e'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts: Inter & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Three.js (3D WebGL Engine) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls for Three.js -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <style>
         * {
@@ -31,64 +51,44 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #060911;
+            background-color: #05070d;
             color: #e2e8f0;
             font-family: 'Inter', sans-serif;
         }
 
-        /* Glassmorphism Dark Panel Tokens */
+        /* Glassmorphism token classes */
         .glass-panel {
-            background: rgba(13, 19, 33, 0.75);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            background: rgba(11, 16, 29, 0.78);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05);
         }
 
         .glass-panel-glow {
-            border: 1px solid rgba(56, 189, 248, 0.3);
-            box-shadow: 0 0 25px rgba(56, 189, 248, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(0, 240, 255, 0.35);
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.1);
         }
 
-        /* Scanner Frame Animations */
-        @keyframes scanSweep {
-            0% { transform: translateY(-100%); opacity: 0.2; }
-            50% { opacity: 0.9; }
-            100% { transform: translateY(100%); opacity: 0.2; }
+        /* Laser scanning beam animation */
+        @keyframes laserSweep {
+            0% { top: 4%; opacity: 0.1; }
+            50% { opacity: 0.95; box-shadow: 0 0 20px #00f0ff, 0 0 40px #00f0ff; }
+            100% { top: 96%; opacity: 0.1; }
         }
 
-        .scanner-beam {
-            animation: scanSweep 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        .scanner-beam-line {
+            animation: laserSweep 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
         }
 
-        /* Pulse glow animation */
-        @keyframes pulseGlow {
-            0%, 100% { opacity: 0.4; filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4)); }
-            50% { opacity: 0.85; filter: drop-shadow(0 0 16px rgba(56, 189, 248, 0.8)); }
+        /* Ambient glowing pulse */
+        @keyframes ambientPulse {
+            0%, 100% { opacity: 0.35; transform: scale(1); }
+            50% { opacity: 0.75; transform: scale(1.02); }
         }
 
-        .pulse-ring {
-            animation: pulseGlow 2.5s ease-in-out infinite;
-        }
-
-        /* Fullscreen UI Layer */
-        #hud-container {
-            position: absolute;
-            inset: 0;
-            z-index: 40;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .pointer-interactive {
-            pointer-events: auto;
-        }
-
-        /* Hide mindar built-in default UI cleanly */
-        .mindar-ui-overlay {
-            display: none !important;
+        .reticle-pulse {
+            animation: ambientPulse 3s ease-in-out infinite;
         }
 
         /* Custom Range Slider */
@@ -96,496 +96,852 @@
             -webkit-appearance: none;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 9999px;
-            height: 6px;
+            height: 5px;
         }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
             height: 16px;
             width: 16px;
             border-radius: 50%;
-            background: #38bdf8;
+            background: #00f0ff;
             cursor: pointer;
-            box-shadow: 0 0 10px #38bdf8;
+            box-shadow: 0 0 12px #00f0ff;
+        }
+
+        /* 3D Canvas Layering */
+        #webgl-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: auto;
+        }
+
+        /* Video feed */
+        #camera-video {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+            transform: scaleX(1);
+        }
+
+        /* Uploaded Page Preview Stage */
+        #photo-stage {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: #05070d;
+        }
+
+        #photo-stage img {
+            max-width: 90%;
+            max-height: 80%;
+            object-fit: contain;
+            border-radius: 1rem;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            border: 1px solid rgba(0, 240, 255, 0.2);
         }
     </style>
 </head>
-<body class="bg-[#060911]">
+<body class="bg-obsidian text-slate-100 flex flex-col h-screen w-screen overflow-hidden">
 
-    <div id="hud-container" class="p-4 md:p-6">
-        
-        <!-- Top Status Bar & App Header -->
-        <header class="flex items-start justify-between w-full max-w-5xl mx-auto">
-            <!-- App Badge -->
-            <div class="pointer-interactive glass-panel rounded-2xl px-4 py-3 flex items-center space-x-3 transition-all hover:border-cyan-500/40">
-                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                    <i data-lucide="atom" class="w-5 h-5 text-white animate-spin" style="animation-duration: 12s;"></i>
+    <!-- Background Camera Video Feed -->
+    <video id="camera-video" autoplay playsinline muted></video>
+
+    <!-- Uploaded Photo Stage (Mode 2) -->
+    <div id="photo-stage">
+        <img id="scanned-photo-preview" src="" alt="Textbook Photo Target">
+    </div>
+
+    <!-- Interactive Three.js WebGL Canvas Overlay -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Master Interactive HUD Container -->
+    <div id="hud-container" class="absolute inset-0 z-30 pointer-events-none flex flex-col justify-between p-3 sm:p-5">
+
+        <!-- Top App Navigation & Mode Selector -->
+        <header class="w-full max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
+            <!-- Brand & Subject Title -->
+            <div class="pointer-events-auto glass-panel px-3.5 py-2.5 rounded-2xl flex items-center space-x-3 transition-all hover:border-cyan-500/40">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-cyan-500/25">
+                    <i data-lucide="atom" class="w-5 h-5 text-white animate-spin" style="animation-duration: 16s;"></i>
                 </div>
                 <div>
                     <div class="flex items-center space-x-2">
-                        <span class="text-xs font-mono tracking-wider uppercase text-cyan-400 font-semibold">AR Textbook v2</span>
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span class="text-[10px] font-mono tracking-widest uppercase text-cyan-400 font-bold">SciLens AR</span>
+                        <span id="active-mode-badge" class="px-1.5 py-0.5 rounded bg-cyan-500/20 text-[9px] font-mono text-cyan-300">CAMERA MODE</span>
                     </div>
-                    <h1 class="text-sm md:text-base font-bold text-white tracking-tight">Quantum Physics 101</h1>
+                    <h1 id="active-model-title" class="text-xs sm:text-sm font-bold text-white tracking-tight">Quantum Physics • Bohr Atom</h1>
                 </div>
             </div>
 
-            <!-- Tracking Status Pill & Action Buttons -->
-            <div class="flex items-center space-x-2 pointer-interactive">
-                <div id="tracking-pill" class="glass-panel px-3.5 py-2 rounded-full flex items-center space-x-2.5 transition-colors border-amber-500/30">
-                    <span id="tracking-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-                    <span id="tracking-text" class="text-xs font-mono font-medium text-amber-200 uppercase tracking-wider">Scanning Page...</span>
+            <!-- Mode Selector Tabs & Status Pill -->
+            <div class="pointer-events-auto flex items-center space-x-2">
+                <!-- Tracking Status Badge -->
+                <div id="tracking-status-pill" class="glass-panel px-3 py-1.5 rounded-full flex items-center space-x-2 border-amber-500/40 transition-colors">
+                    <span id="status-indicator-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                    <span id="status-indicator-text" class="text-[11px] font-mono uppercase tracking-wider text-amber-300">Searching Page...</span>
                 </div>
 
-                <!-- Open Target Image Card -->
-                <button onclick="openTargetModal()" title="View Target Image" class="glass-panel p-2.5 rounded-xl hover:bg-white/10 text-cyan-300 hover:text-white transition-all active:scale-95">
-                    <i data-lucide="scan" class="w-5 h-5"></i>
+                <!-- Open Textbook Marker Library -->
+                <button onclick="openTargetLibraryModal()" title="Textbook Targets Library" class="glass-panel p-2.5 rounded-xl hover:bg-white/10 text-cyan-300 hover:text-white transition-all active:scale-95 flex items-center space-x-1.5">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span class="text-xs font-medium hidden md:inline">Sample Pages</span>
                 </button>
 
-                <!-- Help / Info Modal -->
-                <button onclick="openInfoModal()" title="Instructions" class="glass-panel p-2.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition-all active:scale-95">
-                    <i data-lucide="help-circle" class="w-5 h-5"></i>
+                <!-- Help / Diagnostics Button -->
+                <button onclick="openHelpModal()" title="Help & Camera Diagnostics" class="glass-panel p-2.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition-all active:scale-95">
+                    <i data-lucide="help-circle" class="w-4 h-4"></i>
                 </button>
             </div>
         </header>
 
-        <!-- Center Viewfinder reticle (visible while searching for target) -->
-        <div id="scanner-viewfinder" class="self-center my-auto pointer-events-none flex flex-col items-center justify-center transition-all duration-700 ease-out">
-            <div class="relative w-64 h-64 sm:w-80 sm:h-80 border-2 border-dashed border-cyan-500/30 rounded-3xl flex items-center justify-center overflow-hidden pulse-ring">
-                <!-- Laser beam scan -->
-                <div class="scanner-beam absolute inset-x-0 h-16 bg-gradient-to-b from-transparent via-cyan-500/25 to-transparent"></div>
+        <!-- Center Target Reticle & Diagnostic Center -->
+        <main id="center-stage" class="self-center my-auto pointer-events-none flex flex-col items-center justify-center transition-all duration-500">
+            
+            <!-- Reticle Scanner Viewfinder -->
+            <div id="reticle-box" class="relative w-64 h-64 sm:w-80 sm:h-80 border border-cyan-500/30 rounded-3xl flex flex-col items-center justify-center overflow-hidden reticle-pulse">
+                <!-- High-tech grid lines -->
+                <div class="absolute inset-0 bg-[radial-gradient(#00f0ff_1px,transparent_1px)] [background-size:16px_16px] opacity-15"></div>
                 
-                <!-- Corner Brackets -->
-                <div class="absolute top-2 left-2 w-7 h-7 border-t-2 border-l-2 border-cyan-400 rounded-tl-lg"></div>
-                <div class="absolute top-2 right-2 w-7 h-7 border-t-2 border-r-2 border-cyan-400 rounded-tr-lg"></div>
-                <div class="absolute bottom-2 left-2 w-7 h-7 border-b-2 border-l-2 border-cyan-400 rounded-bl-lg"></div>
-                <div class="absolute bottom-2 right-2 w-7 h-7 border-b-2 border-r-2 border-cyan-400 rounded-br-lg"></div>
+                <!-- Laser Sweep Beam -->
+                <div class="scanner-beam-line absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
 
-                <div class="text-center px-4">
-                    <i data-lucide="book-open" class="w-8 h-8 mx-auto text-cyan-400/80 mb-2"></i>
-                    <p class="text-xs font-mono text-cyan-200 tracking-wide">ALIGN TEXTBOOK TARGET</p>
-                    <p class="text-[11px] text-slate-400 mt-1 max-w-[180px]">Keep image flat & well illuminated</p>
+                <!-- Corner Brackets -->
+                <div class="absolute top-2.5 left-2.5 w-6 h-6 border-t-2 border-l-2 border-cyan-400 rounded-tl-lg"></div>
+                <div class="absolute top-2.5 right-2.5 w-6 h-6 border-t-2 border-r-2 border-cyan-400 rounded-tr-lg"></div>
+                <div class="absolute bottom-2.5 left-2.5 w-6 h-6 border-b-2 border-l-2 border-cyan-400 rounded-bl-lg"></div>
+                <div class="absolute bottom-2.5 right-2.5 w-6 h-6 border-b-2 border-r-2 border-cyan-400 rounded-br-lg"></div>
+
+                <div class="text-center px-6 z-10">
+                    <i data-lucide="scan-line" class="w-8 h-8 mx-auto text-cyan-400 mb-2 drop-shadow-[0_0_8px_rgba(0,240,255,0.8)]"></i>
+                    <p class="text-xs font-mono font-bold tracking-wider text-cyan-200 uppercase">Align Textbook Diagram</p>
+                    <p class="text-[11px] text-slate-400 mt-1 max-w-[200px] leading-relaxed">Point camera or trigger an instant scan simulation below</p>
                 </div>
             </div>
 
-            <!-- Simulation shortcut for instant preview -->
-            <button onclick="toggleSimulationMode()" class="mt-4 pointer-interactive glass-panel px-4 py-2 rounded-full text-xs font-medium text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 transition-all flex items-center space-x-2 active:scale-95">
-                <i data-lucide="play-circle" class="w-4 h-4 text-cyan-400"></i>
-                <span id="sim-btn-text">Simulate Scan (No Physical Book)</span>
-            </button>
-        </div>
+            <!-- Instant Trigger & Diagnostic Quick Buttons -->
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-2 pointer-events-auto">
+                <!-- Instant Scan Trigger (Simulates physical page lock) -->
+                <button id="btn-scan-trigger" onclick="simulateScanDetection()" class="glass-panel px-4 py-2 rounded-full text-xs font-medium text-cyan-300 hover:text-white hover:border-cyan-400/60 transition-all flex items-center space-x-2 active:scale-95 shadow-lg shadow-cyan-900/20">
+                    <i data-lucide="zap" class="w-3.5 h-3.5 text-cyan-400"></i>
+                    <span id="scan-trigger-text">Trigger Scan Match (Pop 3D Model)</span>
+                </button>
 
-        <!-- Bottom Floating Controls HUD -->
-        <footer class="w-full max-w-2xl mx-auto flex flex-col items-center space-y-3 pointer-interactive">
-            
-            <!-- Quick Notification / Status Bubble -->
-            <div id="label-status-toast" class="opacity-0 transition-opacity duration-300 text-xs font-mono py-1 px-3.5 rounded-full glass-panel text-cyan-300 border-cyan-500/40">
-                Labels auto-hidden for clean 3D viewing
+                <!-- Switch to Photo / File mode directly -->
+                <label class="glass-panel px-3.5 py-2 rounded-full text-xs font-medium text-slate-300 hover:text-white hover:border-slate-500 transition-all flex items-center space-x-2 cursor-pointer active:scale-95">
+                    <i data-lucide="upload" class="w-3.5 h-3.5 text-indigo-400"></i>
+                    <span>Upload Page Image</span>
+                    <input type="file" id="file-input-direct" accept="image/*" class="hidden" onchange="handleDirectFileUpload(event)">
+                </label>
             </div>
 
-            <!-- Toolbar Dock -->
-            <div class="glass-panel p-2 rounded-2xl flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-around shadow-2xl">
+            <!-- Diagnostics Banner (Appears if camera cannot start) -->
+            <div id="camera-diag-banner" class="hidden pointer-events-auto mt-4 max-w-md w-full glass-panel bg-amber-950/40 border border-amber-500/40 p-3.5 rounded-2xl text-xs text-amber-200 text-left">
+                <div class="flex items-start space-x-2.5">
+                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-400 shrink-0 mt-0.5"></i>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-amber-100">Camera Access Notice</h4>
+                        <p class="text-[11px] text-amber-200/90 mt-0.5" id="camera-diag-msg">
+                            Camera stream is restricted in this browser or sandbox environment. You can click <strong>"Retry Camera"</strong> or switch to <strong>Upload Mode</strong> to scan instantly.
+                        </p>
+                        <div class="mt-2.5 flex items-center space-x-2">
+                            <button onclick="requestCameraAccess()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1 rounded-lg text-[10px] transition-colors">
+                                Retry Camera
+                            </button>
+                            <button onclick="switchToMode('photo')" class="bg-slate-800 hover:bg-slate-700 text-white font-medium px-3 py-1 rounded-lg text-[10px] transition-colors">
+                                Use Upload Mode
+                            </button>
+                            <button onclick="switchToMode('workbench')" class="bg-slate-800 hover:bg-slate-700 text-cyan-300 font-medium px-3 py-1 rounded-lg text-[10px] transition-colors">
+                                Direct 3D Studio
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Bottom Floating Controls HUD -->
+        <footer class="w-full max-w-3xl mx-auto flex flex-col items-center space-y-2.5 pointer-events-auto">
+            
+            <!-- Toast notification pill -->
+            <div id="toast-pill" class="opacity-0 transition-opacity duration-300 text-xs font-mono py-1 px-4 rounded-full glass-panel text-cyan-300 border-cyan-500/40 shadow-xl">
+                Scanned! Labels auto-hidden. Showing pure 3D model.
+            </div>
+
+            <!-- Main Interactive Toolbar -->
+            <div class="glass-panel p-2 rounded-2xl flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 shadow-2xl w-full sm:w-auto">
                 
-                <!-- Toggle Labels Button (Key requested feature) -->
-                <button id="btn-toggle-labels" onclick="toggleLabels()" class="flex items-center space-x-2 px-3.5 py-2.5 rounded-xl transition-all duration-200 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700">
+                <!-- REQUIREMENT: Labels Toggle Button (Auto-turned OFF on scan) -->
+                <button id="btn-labels-toggle" onclick="toggleLabelsState()" class="flex items-center space-x-2 px-3.5 py-2 rounded-xl transition-all duration-200 bg-slate-900 border border-slate-700 hover:border-cyan-500/50 text-slate-300">
                     <i id="icon-labels" data-lucide="eye-off" class="w-4 h-4 text-amber-400"></i>
                     <span id="text-labels" class="text-xs font-medium">Labels: Off</span>
                 </button>
 
                 <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
 
-                <!-- Rotation Animation Pause/Play -->
-                <button id="btn-pause-rot" onclick="toggleAnimation()" class="flex items-center space-x-2 px-3 py-2.5 rounded-xl transition-all bg-slate-800/60 hover:bg-slate-700/80 text-slate-300">
-                    <i id="icon-anim" data-lucide="pause" class="w-4 h-4 text-cyan-400"></i>
-                    <span class="text-xs font-medium hidden sm:inline">Pause</span>
+                <!-- Mode Switcher: Camera / Upload / 3D Workbench -->
+                <div class="flex items-center bg-slate-950/70 p-1 rounded-xl border border-white/5 text-xs">
+                    <button id="mode-btn-camera" onclick="switchToMode('camera')" class="px-2.5 py-1.5 rounded-lg font-medium text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 transition-all flex items-center space-x-1.5">
+                        <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">Camera</span>
+                    </button>
+                    <button id="mode-btn-photo" onclick="switchToMode('photo')" class="px-2.5 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white transition-all flex items-center space-x-1.5">
+                        <i data-lucide="image" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">Photo Page</span>
+                    </button>
+                    <button id="mode-btn-workbench" onclick="switchToMode('workbench')" class="px-2.5 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white transition-all flex items-center space-x-1.5">
+                        <i data-lucide="box" class="w-3.5 h-3.5"></i>
+                        <span class="hidden sm:inline">3D Studio</span>
+                    </button>
+                </div>
+
+                <div class="h-6 w-[1px] bg-white/10 hidden sm:block"></div>
+
+                <!-- 3D Model Rotation Play/Pause -->
+                <button id="btn-orbit-anim" onclick="toggleOrbitAnimation()" title="Pause/Resume Electron Orbits" class="p-2.5 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-cyan-400 transition-all active:scale-95">
+                    <i id="icon-anim" data-lucide="pause" class="w-4 h-4"></i>
                 </button>
 
                 <!-- Model Scale Control -->
-                <div class="flex items-center space-x-2 px-3 py-2 bg-slate-800/40 rounded-xl">
-                    <i data-lucide="zoom-in" class="w-4 h-4 text-slate-400"></i>
-                    <input type="range" id="scale-slider" min="0.4" max="1.6" step="0.05" value="0.85" oninput="updateScale(this.value)" class="w-20 sm:w-24">
+                <div class="flex items-center space-x-2 px-3 py-1.5 bg-slate-950/70 border border-white/5 rounded-xl">
+                    <i data-lucide="zoom-in" class="w-3.5 h-3.5 text-slate-400"></i>
+                    <input type="range" id="scale-slider" min="0.4" max="2.0" step="0.05" value="1.0" oninput="adjustModelScale(this.value)" class="w-16 sm:w-20">
                 </div>
 
-                <!-- Reset Orientation Button -->
-                <button onclick="resetOrientation()" title="Reset Alignment" class="p-2.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all">
+                <!-- Reset Camera & Orientation -->
+                <button onclick="reset3DView()" title="Reset Alignment & View" class="p-2.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white transition-all">
                     <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                 </button>
             </div>
         </footer>
     </div>
 
-    <!-- Modal 1: Target Image Preview for User to Scan -->
-    <div id="modal-target" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden pointer-events-none opacity-0 transition-opacity duration-300 bg-black/80 backdrop-blur-md">
-        <div class="glass-panel-glow bg-[#0b101c] border border-cyan-500/30 rounded-3xl max-w-md w-full p-6 text-slate-200 pointer-events-auto shadow-2xl relative">
-            <button onclick="closeTargetModal()" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5">
+    <!-- Modal 1: Sample Textbook Target Library -->
+    <div id="modal-library" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden pointer-events-none opacity-0 transition-opacity duration-300 bg-black/85 backdrop-blur-md">
+        <div class="glass-panel-glow bg-[#0b101c] border border-cyan-500/30 rounded-3xl max-w-xl w-full p-5 sm:p-6 text-slate-200 pointer-events-auto shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeTargetLibraryModal()" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
-            
+
             <div class="flex items-center space-x-3 mb-4">
                 <div class="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-                    <i data-lucide="target" class="w-6 h-6"></i>
-                </div>
-                <div>
-                    <h3 class="text-lg font-bold text-white">Target Textbook Marker</h3>
-                    <p class="text-xs text-cyan-300 font-mono">Scan this pattern with camera</p>
-                </div>
-            </div>
-
-            <!-- Target Image Graphic -->
-            <div class="relative bg-black rounded-2xl p-2 border border-slate-700/80 mb-4 overflow-hidden group">
-                <img id="target-sample-img" 
-                     src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/image-tracking/assets/card-example/card.png" 
-                     alt="Textbook AR Marker" 
-                     class="w-full h-auto rounded-xl object-cover filter contrast-125">
-                <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                    <p class="text-xs text-white">MindAR Standard High-Entropy Tracking Marker</p>
-                </div>
-            </div>
-
-            <p class="text-xs text-slate-400 leading-relaxed mb-5">
-                Display this image on a secondary monitor, phone, or print it out. As soon as your device camera detects this pattern, the 3D atomic model locks onto it and the labels fade away automatically.
-            </p>
-
-            <div class="flex space-x-3">
-                <a href="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/image-tracking/assets/card-example/card.png" 
-                   target="_blank" 
-                   class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold py-3 px-4 rounded-xl text-center flex items-center justify-center space-x-2 transition-all shadow-lg shadow-cyan-600/30">
-                    <i data-lucide="external-link" class="w-4 h-4"></i>
-                    <span>Open in New Tab</span>
-                </a>
-                <button onclick="toggleSimulationMode(); closeTargetModal();" class="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-semibold py-3 px-4 rounded-xl text-slate-200 flex items-center justify-center space-x-2 transition-all">
-                    <i data-lucide="box" class="w-4 h-4 text-cyan-400"></i>
-                    <span>Simulate View</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal 2: Textbook Customization Info -->
-    <div id="modal-info" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden pointer-events-none opacity-0 transition-opacity duration-300 bg-black/80 backdrop-blur-md">
-        <div class="glass-panel bg-[#0b101c] border border-slate-700 rounded-3xl max-w-lg w-full p-6 text-slate-200 pointer-events-auto shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button onclick="closeInfoModal()" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5">
-                <i data-lucide="x" class="w-5 h-5"></i>
-            </button>
-
-            <div class="flex items-center space-x-3 mb-4">
-                <div class="p-2.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
                     <i data-lucide="book-marked" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h3 class="text-lg font-bold text-white">Integrating Real Textbooks</h3>
-                    <p class="text-xs text-purple-300 font-mono">Teacher & Developer Workflow</p>
+                    <h3 class="text-base sm:text-lg font-bold text-white">Interactive Textbook Samples</h3>
+                    <p class="text-xs text-cyan-300 font-mono">Scan or click any page to test instantly</p>
                 </div>
             </div>
 
-            <div class="space-y-4 text-xs sm:text-sm text-slate-300">
-                <p>You can compile any high-contrast textbook page, diagram, or worksheet to trigger custom 3D models directly in mobile Safari or Chrome:</p>
+            <p class="text-xs text-slate-300 mb-4 leading-relaxed">
+                Students can point their phone camera at these diagrams, or click <strong>"Scan This Page"</strong> to instantly load it into the visualizer. Notice how the informative labels vanish upon detection to give a pristine 3D view.
+            </p>
 
-                <div class="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 space-y-2">
-                    <div class="flex items-start space-x-2.5">
-                        <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-mono text-xs flex items-center justify-center shrink-0">1</span>
-                        <p><strong class="text-white">Capture page:</strong> Take a flat photo of the page illustration (e.g. Bohr model, cell division, or heart anatomy).</p>
+            <!-- Library Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                
+                <!-- Card 1: Bohr Atom -->
+                <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400 transition-all flex flex-col justify-between">
+                    <div>
+                        <div class="h-28 bg-gradient-to-br from-slate-950 to-cyan-950/40 rounded-xl flex items-center justify-center border border-slate-800 relative overflow-hidden mb-2.5">
+                            <div class="w-14 h-14 rounded-full border-2 border-dashed border-cyan-400/60 flex items-center justify-center animate-spin" style="animation-duration: 20s;">
+                                <div class="w-5 h-5 rounded-full bg-rose-500 shadow-lg shadow-rose-500/80"></div>
+                            </div>
+                            <span class="absolute bottom-1.5 right-2 text-[10px] font-mono text-cyan-400">Fig 4.2</span>
+                        </div>
+                        <h4 class="font-bold text-sm text-white">Quantum Physics</h4>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Bohr Orbital Shell Model (n=3) with orbiting electrons.</p>
                     </div>
-                    <div class="flex items-start space-x-2.5">
-                        <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-mono text-xs flex items-center justify-center shrink-0">2</span>
-                        <p><strong class="text-white">Compile .mind target:</strong> Use the free <a href="https://hiukim.github.io/mind-ar-js-doc/tools/compile" target="_blank" class="text-cyan-400 hover:underline">MindAR Image Compiler</a> to export a lightweight <code>.mind</code> descriptor.</p>
-                    </div>
-                    <div class="flex items-start space-x-2.5">
-                        <span class="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-mono text-xs flex items-center justify-center shrink-0">3</span>
-                        <p><strong class="text-white">Link in code:</strong> Replace the <code>imageTargetSrc: ...</code> attribute on the <code>&lt;a-scene&gt;</code> element with your compiled file.</p>
-                    </div>
+                    <button onclick="loadSamplePage('atom')" class="mt-3 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5">
+                        <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                        <span>Scan This Page</span>
+                    </button>
                 </div>
 
-                <div class="p-3 bg-cyan-950/40 border border-cyan-500/30 rounded-xl text-cyan-200 text-xs">
-                    <span class="font-semibold text-cyan-400">Automatic Label Hiding:</span> This app is configured with event hooks that listen to <code>targetFound</code>. When the book is scanned, informative text labels vanish automatically so learners can rotate and inspect clean 3D structures without visual clutter.
+                <!-- Card 2: Molecular Organic Chemistry -->
+                <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-purple-500/30 hover:border-purple-400 transition-all flex flex-col justify-between">
+                    <div>
+                        <div class="h-28 bg-gradient-to-br from-slate-950 to-purple-950/40 rounded-xl flex items-center justify-center border border-slate-800 relative overflow-hidden mb-2.5">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-[10px] font-bold">C</div>
+                                <div class="w-6 h-0.5 bg-slate-500"></div>
+                                <div class="w-7 h-7 rounded-full bg-cyan-500 flex items-center justify-center text-[10px] font-bold">O</div>
+                                <div class="w-6 h-0.5 bg-slate-500"></div>
+                                <div class="w-7 h-7 rounded-full bg-rose-500 flex items-center justify-center text-[10px] font-bold">N</div>
+                            </div>
+                            <span class="absolute bottom-1.5 right-2 text-[10px] font-mono text-purple-400">Fig 8.1</span>
+                        </div>
+                        <h4 class="font-bold text-sm text-white">Molecular Chemistry</h4>
+                        <p class="text-[11px] text-slate-400 mt-0.5">Lattice structure with covalent chemical bonds.</p>
+                    </div>
+                    <button onclick="loadSamplePage('molecule')" class="mt-3 w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 rounded-xl text-xs transition-colors flex items-center justify-center space-x-1.5">
+                        <i data-lucide="scan" class="w-3.5 h-3.5"></i>
+                        <span>Scan This Page</span>
+                    </button>
                 </div>
             </div>
 
-            <div class="mt-6 flex justify-end">
-                <button onclick="closeInfoModal()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition-all">
+            <div class="mt-4 pt-3 border-t border-slate-800 flex justify-end">
+                <button onclick="closeTargetLibraryModal()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-all">
                     Close Window
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- 
-        MindAR A-Frame Scene
-        - tracking sample card target
-        - high dynamic range tone mapping & lights for neon futuristic theme
-    -->
-    <a-scene 
-        id="ar-scene"
-        mindar-image="imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.2/examples/image-tracking/assets/card-example/card.mind; autoStart: true; filterMinCF:0.001; filterBeta: 1000;" 
-        color-space="sRGB" 
-        renderer="colorManagement: true; physicallyCorrectLights: true; alpha: true;" 
-        embedded
-        vr-mode-ui="enabled: false" 
-        device-orientation-permission-ui="enabled: false">
-        
-        <!-- Assets declaration -->
-        <a-assets>
-            <a-mixin id="orbit-ring" geometry="primitive: torus; radius: 0.45; radiusTubular: 0.003; segmentsTubular: 64"></a-mixin>
-            <a-mixin id="electron-sphere" geometry="primitive: sphere; radius: 0.038" material="roughness: 0.1; metalness: 0.8; emissiveIntensity: 0.8"></a-mixin>
-        </a-assets>
+    <!-- Modal 2: Diagnostics & Instructions Modal -->
+    <div id="modal-help" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden pointer-events-none opacity-0 transition-opacity duration-300 bg-black/85 backdrop-blur-md">
+        <div class="glass-panel bg-[#0b101c] border border-slate-700 rounded-3xl max-w-lg w-full p-5 sm:p-6 text-slate-200 pointer-events-auto shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeHelpModal()" class="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/5">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
 
-        <!-- Camera for tracking overlay -->
-        <a-camera id="main-camera" position="0 0 0" look-controls="enabled: false"></a-camera>
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    <i data-lucide="shield-check" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-white">How This AR Scanner Works</h3>
+                    <p class="text-xs text-amber-300 font-mono">Troubleshooting & Camera Permissions</p>
+                </div>
+            </div>
 
-        <!-- 
-            MIND-AR TARGET ENTITY
-            Attached to target index 0 (the textbook page)
-        -->
-        <a-entity id="target-anchor" mindar-image-target="targetIndex: 0">
-            
-            <!-- Root Container for 3D model (Supports Scale & User Orientation) -->
-            <a-entity id="atom-root" position="0 0 0.15" scale="0.85 0.85 0.85">
-                
-                <!-- ================= NUCLEUS CORE ================= -->
-                <!-- Central pulsating nucleus glow -->
-                <a-entity id="nucleus-group">
-                    <!-- Core Glow Sphere -->
-                    <a-sphere radius="0.09" color="#f43f5e" material="roughness: 0.3; metalness: 0.4; emissive: #e11d48; emissiveIntensity: 0.6;"
-                              animation="property: scale; dir: alternate; dur: 1200; to: 1.08 1.08 1.08; loop: true; easing: easeInOutSine">
-                    </a-sphere>
+            <div class="space-y-3.5 text-xs text-slate-300 leading-relaxed">
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800">
+                    <h4 class="font-bold text-white mb-1">Why might camera access fail?</h4>
+                    <p>
+                        Modern browsers enforce strict security policies:
+                    </p>
+                    <ul class="list-disc pl-4 mt-1.5 space-y-1 text-slate-400">
+                        <li><strong>Iframe Restrictions:</strong> Inside code playgrounds or sandboxes, webcams require the <code>allow="camera"</code> permission attribute.</li>
+                        <li><strong>HTTPS Protocol:</strong> Webcams only activate under <code>https://</code> or <code>localhost</code>.</li>
+                        <li><strong>System Permissions:</strong> Ensure your OS settings (macOS, Windows, iOS, Android) permit your browser to use the camera.</li>
+                    </ul>
+                </div>
 
-                    <!-- Proton cluster spheres -->
-                    <a-sphere position="0.04 0.03 0.02" radius="0.04" color="#fb7185" material="roughness: 0.2; emissive: #f43f5e; emissiveIntensity: 0.4"></a-sphere>
-                    <a-sphere position="-0.03 -0.04 0.03" radius="0.04" color="#06b6d4" material="roughness: 0.2; emissive: #0891b2; emissiveIntensity: 0.4"></a-sphere>
-                    <a-sphere position="0.02 -0.04 -0.03" radius="0.038" color="#a855f7" material="roughness: 0.2; emissive: #9333ea; emissiveIntensity: 0.4"></a-sphere>
-                    <a-sphere position="-0.04 0.04 -0.02" radius="0.037" color="#06b6d4" material="roughness: 0.2; emissive: #0891b2; emissiveIntensity: 0.4"></a-sphere>
+                <div class="bg-cyan-950/30 p-3.5 rounded-xl border border-cyan-500/30">
+                    <h4 class="font-bold text-cyan-300 mb-1">The 100% Reliable Fallback:</h4>
+                    <p>
+                        If your camera is blocked or unavailable, switch directly to <strong>Photo Page Mode</strong> (uploading any picture of your textbook from your camera roll) or <strong>3D Studio Mode</strong> to examine and interact with the model with full 360° mouse or touch controls.
+                    </p>
+                </div>
 
-                    <!-- Subtle outer energy halo -->
-                    <a-ring radius-inner="0.14" radius-outer="0.145" color="#38bdf8" material="opacity: 0.6; transparent: true; side: double"
-                            animation="property: rotation; to: 360 360 0; loop: true; dur: 8000; easing: linear">
-                    </a-ring>
-                </a-entity>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800">
+                    <h4 class="font-bold text-white mb-1">Label Auto-Hide Feature:</h4>
+                    <p>
+                        By default, when a page is recognized, all text tags automatically vanish so learners get an uncluttered, distraction-free 3D visual. Click <strong>"Labels: Off / On"</strong> in the bottom bar at any time to toggle annotations.
+                    </p>
+                </div>
+            </div>
 
-                <!-- ================= ELECTRON ORBIT 1 (Horizontal Emerald) ================= -->
-                <a-entity id="orbit-1" class="orbit-anim" animation="property: rotation; to: 0 360 0; loop: true; dur: 4500; easing: linear">
-                    <a-entity mixin="orbit-ring" material="color: #10b981; opacity: 0.7; transparent: true; emissive: #059669; emissiveIntensity: 0.6"></a-entity>
-                    <!-- Electron 1 -->
-                    <a-entity mixin="electron-sphere" position="0.45 0 0" material="color: #6ee7b7; emissive: #34d399">
-                        <a-sphere radius="0.015" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1"></a-sphere>
-                    </a-entity>
-                </a-entity>
-
-                <!-- ================= ELECTRON ORBIT 2 (Tilted 60 deg Cyan) ================= -->
-                <a-entity id="orbit-2" class="orbit-anim" rotation="60 45 0" animation="property: rotation; to: 60 405 0; loop: true; dur: 5800; easing: linear">
-                    <a-entity mixin="orbit-ring" material="color: #06b6d4; opacity: 0.7; transparent: true; emissive: #0891b2; emissiveIntensity: 0.6"></a-entity>
-                    <!-- Electron 2 -->
-                    <a-entity mixin="electron-sphere" position="-0.45 0 0" material="color: #67e8f9; emissive: #22d3ee">
-                        <a-sphere radius="0.015" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1"></a-sphere>
-                    </a-entity>
-                </a-entity>
-
-                <!-- ================= ELECTRON ORBIT 3 (Tilted -60 deg Violet) ================= -->
-                <a-entity id="orbit-3" class="orbit-anim" rotation="-60 -30 0" animation="property: rotation; to: -60 330 0; loop: true; dur: 7000; easing: linear">
-                    <a-entity mixin="orbit-ring" material="color: #a855f7; opacity: 0.7; transparent: true; emissive: #7c3aed; emissiveIntensity: 0.6"></a-entity>
-                    <!-- Electron 3 -->
-                    <a-entity mixin="electron-sphere" position="0 0.45 0" material="color: #d8b4fe; emissive: #c084fc">
-                        <a-sphere radius="0.015" color="#ffffff" material="emissive: #ffffff; emissiveIntensity: 1"></a-sphere>
-                    </a-entity>
-                </a-entity>
-
-                <!-- ================= 3D TEXT LABELS (Auto-hidden upon scanning) ================= -->
-                <!-- All labels placed in a master container with smooth visibility toggle -->
-                <a-entity id="labels-container" visible="true" animation__fade="property: scale; dur: 400; easing: easeInOutQuad">
-                    
-                    <!-- Label 1: Nucleus Pointer -->
-                    <a-entity id="label-nucleus" position="0 0.28 0">
-                        <!-- Label Background Plate -->
-                        <a-plane width="0.48" height="0.14" color="#0f172a" material="opacity: 0.85; transparent: true; roughness: 0.5" position="0 0 0">
-                            <a-text value="NUCLEUS (Protons + Neutrons)" 
-                                    color="#38bdf8" 
-                                    align="center" 
-                                    width="1.2" 
-                                    position="0 0 0.01"
-                                    font="monoid"></a-text>
-                        </a-plane>
-                        <!-- Pointer Stem Line -->
-                        <a-cylinder position="0 -0.1 0" radius="0.003" height="0.14" color="#38bdf8" material="opacity: 0.8; transparent: true"></a-cylinder>
-                        <a-sphere position="0 -0.17 0" radius="0.01" color="#38bdf8"></a-sphere>
-                    </a-entity>
-
-                    <!-- Label 2: Electron Shell Pointer -->
-                    <a-entity id="label-electrons" position="0.55 0.22 0">
-                        <a-plane width="0.44" height="0.13" color="#0f172a" material="opacity: 0.85; transparent: true; roughness: 0.5" position="0 0 0">
-                            <a-text value="QUANTUM SHELL (e-)" 
-                                    color="#34d399" 
-                                    align="center" 
-                                    width="1.1" 
-                                    position="0 0 0.01"
-                                    font="monoid"></a-text>
-                        </a-plane>
-                        <a-cylinder position="-0.16 -0.09 0" rotation="0 0 52" radius="0.003" height="0.22" color="#34d399" material="opacity: 0.8; transparent: true"></a-cylinder>
-                    </a-entity>
-
-                    <!-- Label 3: Energy Level Info Badge -->
-                    <a-entity id="label-energy" position="-0.52 -0.25 0">
-                        <a-plane width="0.46" height="0.13" color="#0f172a" material="opacity: 0.85; transparent: true; roughness: 0.5" position="0 0 0">
-                            <a-text value="Bohr Orbital Model n=3" 
-                                    color="#c084fc" 
-                                    align="center" 
-                                    width="1.1" 
-                                    position="0 0 0.01"
-                                    font="monoid"></a-text>
-                        </a-plane>
-                        <a-cylinder position="0.16 0.08 0" rotation="0 0 -45" radius="0.003" height="0.18" color="#c084fc" material="opacity: 0.8; transparent: true"></a-cylinder>
-                    </a-entity>
-
-                </a-entity>
-                <!-- /END LABELS -->
-
-            </a-entity>
-
-            <!-- Scene Dynamic Lighting -->
-            <a-light type="ambient" color="#334155" intensity="1.2"></a-light>
-            <a-light type="point" color="#38bdf8" intensity="2.2" distance="3" position="0 0 1"></a-light>
-            <a-light type="directional" color="#ffffff" intensity="0.8" position="-1 2 2"></a-light>
-        </a-entity>
-    </a-scene>
+            <div class="mt-5 flex justify-end">
+                <button onclick="closeHelpModal()" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold px-5 py-2.5 rounded-xl transition-all">
+                    Got it, thanks!
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // Application State
-        const state = {
-            labelsVisible: false,      // Requirement: Labels go away when scanned (default to off on scan)
-            isTargetFound: false,
-            isAnimationPaused: false,
-            isSimulationActive: false,
-            currentScale: 0.85
+        // Core State Management
+        const appState = {
+            currentMode: 'camera', // 'camera' | 'photo' | 'workbench'
+            isScanned: false,
+            labelsVisible: false,   // Requirement: Labels disappear on scan
+            animationRunning: true,
+            modelType: 'atom',      // 'atom' | 'molecule'
+            scale: 1.0,
+            cameraActive: false,
+            videoStream: null
         };
 
-        // DOM Element Cache
-        const labelsContainer = document.getElementById('labels-container');
-        const trackingPill = document.getElementById('tracking-pill');
-        const trackingDot = document.getElementById('tracking-dot');
-        const trackingText = document.getElementById('tracking-text');
-        const scannerViewfinder = document.getElementById('scanner-viewfinder');
-        const btnToggleLabels = document.getElementById('btn-toggle-labels');
+        // DOM elements
+        const videoElement = document.getElementById('camera-video');
+        const photoStage = document.getElementById('photo-stage');
+        const photoPreview = document.getElementById('scanned-photo-preview');
+        const trackingStatusPill = document.getElementById('tracking-status-pill');
+        const statusIndicatorDot = document.getElementById('status-indicator-dot');
+        const statusIndicatorText = document.getElementById('status-indicator-text');
+        const reticleBox = document.getElementById('reticle-box');
+        const cameraDiagBanner = document.getElementById('camera-diag-banner');
+        const cameraDiagMsg = document.getElementById('camera-diag-msg');
+        const btnLabelsToggle = document.getElementById('btn-labels-toggle');
         const textLabels = document.getElementById('text-labels');
         const iconLabels = document.getElementById('icon-labels');
-        const labelStatusToast = document.getElementById('label-status-toast');
-        const atomRoot = document.getElementById('atom-root');
-        const targetAnchor = document.getElementById('target-anchor');
-        const simBtnText = document.getElementById('sim-btn-text');
+        const toastPill = document.getElementById('toast-pill');
+        const scanTriggerText = document.getElementById('scan-trigger-text');
+        const activeModeBadge = document.getElementById('active-mode-badge');
+        const activeModelTitle = document.getElementById('active-model-title');
 
-        // Initialize icons
-        lucide.createIcons();
+        let scene, camera, renderer, controls;
+        let mainModelGroup = new THREE.Group();
+        let labelsGroup = new THREE.Group();
+        let electronOrbits = [];
+        let nucleusCluster;
 
-        window.addEventListener('DOMContentLoaded', () => {
-            const sceneEl = document.querySelector('a-scene');
+        function initThreeEngine() {
+            const canvas = document.getElementById('webgl-canvas');
+            
+            // 1. Scene
+            scene = new THREE.Scene();
 
-            // Wait for A-Frame scene to load
-            sceneEl.addEventListener('loaded', () => {
-                const targetEntity = document.querySelector('[mindar-image-target]');
-                
-                if (!targetEntity) return;
+            // 2. Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 7);
 
-                // EVENT: Target Detected on physical textbook page
-                targetEntity.addEventListener('targetFound', (event) => {
-                    handleTargetDetected();
+            // 3. Renderer with transparent background to overlay on camera
+            renderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                alpha: true,
+                antialias: true,
+                powerPreference: 'high-performance'
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.outputEncoding = THREE.sRGBEncoding;
+
+            // 4. OrbitControls for interactive viewing
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+            controls.autoRotate = false;
+            controls.autoRotateSpeed = 1.2;
+
+            // 5. Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+            scene.add(ambientLight);
+
+            const cyanLight = new THREE.PointLight(0x00f0ff, 2.5, 50);
+            cyanLight.position.set(5, 5, 5);
+            scene.add(cyanLight);
+
+            const magentaLight = new THREE.PointLight(0xf43f5e, 2.0, 50);
+            magentaLight.position.set(-5, -5, -3);
+            scene.add(magentaLight);
+
+            // 6. Add root containers
+            scene.add(mainModelGroup);
+            mainModelGroup.add(labelsGroup);
+
+            // Build Bohr Atom Model
+            buildBohrAtomModel();
+
+            // Set initial visibility according to scanned state
+            updateModelVisibility();
+
+            // Resize listener
+            window.addEventListener('resize', onWindowResize);
+
+            // Start animation render loop
+            animateLoop();
+        }
+
+        function buildBohrAtomModel() {
+            // Clear previous model
+            while(mainModelGroup.children.length > 0){ 
+                mainModelGroup.remove(mainModelGroup.children[0]); 
+            }
+            labelsGroup = new THREE.Group();
+            electronOrbits = [];
+
+            const atomContainer = new THREE.Group();
+            atomContainer.name = "atomStructure";
+
+            // --- Nucleus (Protons & Neutrons cluster) ---
+            nucleusCluster = new THREE.Group();
+            const protonGeo = new THREE.SphereGeometry(0.24, 32, 32);
+            const protonMat = new THREE.MeshStandardMaterial({
+                color: 0xf43f5e,
+                roughness: 0.2,
+                metalness: 0.3,
+                emissive: 0xbe123c,
+                emissiveIntensity: 0.6
+            });
+            const neutronMat = new THREE.MeshStandardMaterial({
+                color: 0x38bdf8,
+                roughness: 0.2,
+                metalness: 0.3,
+                emissive: 0x0284c7,
+                emissiveIntensity: 0.6
+            });
+
+            // Packing particles
+            const positions = [
+                [0, 0, 0], [0.22, 0.15, 0], [-0.2, -0.12, 0.1],
+                [0.1, -0.22, -0.1], [-0.15, 0.2, -0.1], [0.12, 0.1, 0.22],
+                [-0.1, -0.1, -0.22]
+            ];
+
+            positions.forEach((pos, idx) => {
+                const mesh = new THREE.Mesh(protonGeo, (idx % 2 === 0) ? protonMat : neutronMat);
+                mesh.position.set(pos[0], pos[1], pos[2]);
+                nucleusCluster.add(mesh);
+            });
+
+            // Outer energy aura ring
+            const auraGeo = new THREE.RingGeometry(0.55, 0.58, 64);
+            const auraMat = new THREE.MeshBasicMaterial({
+                color: 0x00f0ff,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.6
+            });
+            const auraMesh = new THREE.Mesh(auraGeo, auraMat);
+            nucleusCluster.add(auraMesh);
+
+            atomContainer.add(nucleusCluster);
+
+            // --- Electron Shells & Orbiting Electrons ---
+            const orbitConfigs = [
+                { radius: 1.5, rotX: 0.3, rotY: 0.2, color: 0x10b981, speed: 0.024 },
+                { radius: 2.3, rotX: 1.2, rotY: 0.6, color: 0x00f0ff, speed: 0.017 },
+                { radius: 3.1, rotX: -0.8, rotY: 0.9, color: 0xa855f7, speed: 0.012 }
+            ];
+
+            orbitConfigs.forEach((cfg) => {
+                const orbitGroup = new THREE.Group();
+                orbitGroup.rotation.x = cfg.rotX;
+                orbitGroup.rotation.y = cfg.rotY;
+
+                // Orbit Torus Ring
+                const ringGeo = new THREE.TorusGeometry(cfg.radius, 0.018, 16, 100);
+                const ringMat = new THREE.MeshBasicMaterial({
+                    color: cfg.color,
+                    transparent: true,
+                    opacity: 0.65
                 });
+                const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+                orbitGroup.add(ringMesh);
 
-                // EVENT: Target Lost
-                targetEntity.addEventListener('targetLost', (event) => {
-                    handleTargetLost();
+                // Orbiting Electron
+                const electronGeo = new THREE.SphereGeometry(0.12, 24, 24);
+                const electronMat = new THREE.MeshStandardMaterial({
+                    color: cfg.color,
+                    emissive: cfg.color,
+                    emissiveIntensity: 0.9,
+                    roughness: 0.1
+                });
+                const electronMesh = new THREE.Mesh(electronGeo, electronMat);
+                electronMesh.position.set(cfg.radius, 0, 0);
+
+                // Small trailing glow
+                const glowGeo = new THREE.SphereGeometry(0.18, 16, 16);
+                const glowMat = new THREE.MeshBasicMaterial({
+                    color: cfg.color,
+                    transparent: true,
+                    opacity: 0.3
+                });
+                electronMesh.add(new THREE.Mesh(glowGeo, glowMat));
+
+                orbitGroup.add(electronMesh);
+                atomContainer.add(orbitGroup);
+
+                electronOrbits.push({
+                    group: orbitGroup,
+                    speed: cfg.speed,
+                    radius: cfg.radius,
+                    electron: electronMesh,
+                    angle: Math.random() * Math.PI * 2
                 });
             });
-        });
 
-        // Triggered when camera matches the textbook image
-        function handleTargetDetected() {
-            state.isTargetFound = true;
+            mainModelGroup.add(atomContainer);
 
-            // 1. Update Tracking Status Pill
-            trackingPill.classList.remove('border-amber-500/30');
-            trackingPill.classList.add('border-emerald-500/50', 'bg-emerald-950/40');
-            trackingDot.classList.remove('bg-amber-400');
-            trackingDot.classList.add('bg-emerald-400');
-            trackingText.textContent = "Model Locked";
-            trackingText.classList.remove('text-amber-200');
-            trackingText.classList.add('text-emerald-300');
-
-            // 2. Hide Center Viewfinder reticle
-            scannerViewfinder.classList.add('opacity-0', 'scale-90');
-            setTimeout(() => {
-                scannerViewfinder.style.display = 'none';
-            }, 700);
-
-            // 3. CORE REQUIREMENT: All labels go away when scanned, showing ONLY the 3D model
-            hideLabelsAuto();
+            // --- Construct 3D Floating Labels ---
+            buildFloatingLabels();
+            mainModelGroup.add(labelsGroup);
         }
 
-        // Triggered when camera loses sight of target
-        function handleTargetLost() {
-            if (state.isSimulationActive) return; // Ignore if user is simulating
+        // Generate high-resolution HTML Canvas Texture for 3D Labels
+        function createLabelTexture(text, subtitle, colorHex) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 160;
+            const ctx = canvas.getContext('2d');
 
-            state.isTargetFound = false;
+            // Dark glass pill background
+            ctx.fillStyle = 'rgba(8, 14, 28, 0.88)';
+            ctx.strokeStyle = colorHex;
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.roundRect(10, 10, 492, 140, 24);
+            ctx.fill();
+            ctx.stroke();
 
-            // Restore Tracking Pill
-            trackingPill.classList.remove('border-emerald-500/50', 'bg-emerald-950/40');
-            trackingPill.classList.add('border-amber-500/30');
-            trackingDot.classList.remove('bg-emerald-400');
-            trackingDot.classList.add('bg-amber-400');
-            trackingText.textContent = "Scanning Page...";
-            trackingText.classList.remove('text-emerald-300');
-            trackingText.classList.add('text-amber-200');
+            // Accent bar
+            ctx.fillStyle = colorHex;
+            ctx.fillRect(24, 28, 12, 104);
 
-            // Bring back Viewfinder reticle
-            scannerViewfinder.style.display = 'flex';
-            setTimeout(() => {
-                scannerViewfinder.classList.remove('opacity-0', 'scale-90');
-            }, 50);
+            // Title
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 36px Inter, sans-serif';
+            ctx.fillText(text, 52, 68);
+
+            // Subtitle
+            ctx.fillStyle = colorHex;
+            ctx.font = '500 24px monospace';
+            ctx.fillText(subtitle, 52, 114);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
         }
 
-        // Auto-hide labels with notification toast
-        function hideLabelsAuto() {
-            state.labelsVisible = false;
-            applyLabelsState();
+        function buildFloatingLabels() {
+            labelsGroup.clear();
 
-            // Display non-intrusive toast notice
-            showToast("Labels hidden for clean 3D viewing. Use bottom HUD to toggle.");
+            const labelData = [
+                {
+                    title: "Atomic Nucleus",
+                    subtitle: "Protons + Neutrons (Dense Core)",
+                    color: "#f43f5e",
+                    pos: [0, 1.3, 0],
+                    pinTo: [0, 0, 0]
+                },
+                {
+                    title: "Valence Quantum Shell",
+                    subtitle: "Energy Level n=3 (e- probability)",
+                    color: "#00f0ff",
+                    pos: [2.7, 1.8, 0],
+                    pinTo: [2.2, 0.3, 0]
+                },
+                {
+                    title: "Bohr Quantization",
+                    subtitle: "L = n(h / 2pi) Angular Momentum",
+                    color: "#a855f7",
+                    pos: [-2.6, -1.8, 0],
+                    pinTo: [-1.4, -0.6, 0]
+                }
+            ];
+
+            labelData.forEach((item) => {
+                const spriteMat = new THREE.SpriteMaterial({
+                    map: createLabelTexture(item.title, item.subtitle, item.color),
+                    transparent: true,
+                    depthTest: false
+                });
+                const sprite = new THREE.Sprite(spriteMat);
+                sprite.position.set(item.pos[0], item.pos[1], item.pos[2]);
+                sprite.scale.set(2.4, 0.75, 1);
+
+                // Stem connection line
+                const lineGeo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(item.pos[0], item.pos[1] - 0.25, item.pos[2]),
+                    new THREE.Vector3(item.pinTo[0], item.pinTo[1], item.pinTo[2])
+                ]);
+                const lineMat = new THREE.LineBasicMaterial({
+                    color: item.color,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                const line = new THREE.Line(lineGeo, lineMat);
+
+                labelsGroup.add(sprite);
+                labelsGroup.add(line);
+            });
+
+            // Respect initial label state
+            labelsGroup.visible = appState.labelsVisible;
         }
 
-        // Manual User Toggle (Show / Hide labels on demand)
-        function toggleLabels() {
-            state.labelsVisible = !state.labelsVisible;
-            applyLabelsState();
+        async function requestCameraAccess() {
+            try {
+                // Check MediaDevices support
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("getUserMedia is not supported or is blocked in this browser context.");
+                }
 
-            if (state.labelsVisible) {
-                showToast("Labels & annotations enabled");
-            } else {
-                showToast("Labels hidden (Pure 3D Model)");
+                // Stop existing tracks if any
+                if (appState.videoStream) {
+                    appState.videoStream.getTracks().forEach(track => track.stop());
+                }
+
+                // Request camera with environment preference for mobile phones
+                const constraints = {
+                    audio: false,
+                    video: {
+                        facingMode: { ideal: "environment" },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                appState.videoStream = stream;
+                videoElement.srcObject = stream;
+                
+                await new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        videoElement.play();
+                        resolve();
+                    };
+                });
+
+                appState.cameraActive = true;
+                cameraDiagBanner.classList.add('hidden');
+                showToast("Camera feed active! Point at textbook diagram.");
+
+            } catch (err) {
+                console.warn("Camera initialization warning:", err.message);
+                appState.cameraActive = false;
+                
+                // Display informative diagnostic banner
+                cameraDiagBanner.classList.remove('hidden');
+                cameraDiagMsg.innerHTML = `
+                    Unable to start camera (${err.name || 'Permission Restricted'}).
+                    <br><span class="text-slate-300">If you are inside an iframe sandbox or non-HTTPS URL, switch to <strong>Upload Mode</strong> or <strong>3D Studio</strong>.</span>
+                `;
             }
         }
 
-        function applyLabelsState() {
-            if (state.labelsVisible) {
-                // Show Labels
-                labelsContainer.setAttribute('visible', 'true');
-                labelsContainer.setAttribute('animation__fade', 'property: scale; to: 1 1 1; dur: 300;');
-                
-                // Update Button HUD
+        function switchToMode(mode) {
+            appState.currentMode = mode;
+
+            // Reset buttons style
+            document.querySelectorAll('[id^="mode-btn-"]').forEach(btn => {
+                btn.className = "px-2.5 py-1.5 rounded-lg font-medium text-slate-400 hover:text-white transition-all flex items-center space-x-1.5";
+            });
+
+            const activeBtn = document.getElementById(`mode-btn-${mode}`);
+            if (activeBtn) {
+                activeBtn.className = "px-2.5 py-1.5 rounded-lg font-medium text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 transition-all flex items-center space-x-1.5";
+            }
+
+            if (mode === 'camera') {
+                activeModeBadge.textContent = "CAMERA MODE";
+                photoStage.style.display = 'none';
+                videoElement.style.display = 'block';
+                reticleBox.style.display = 'flex';
+                controls.enabled = true;
+                requestCameraAccess();
+
+            } else if (mode === 'photo') {
+                activeModeBadge.textContent = "PHOTO SCAN MODE";
+                if (appState.videoStream) {
+                    appState.videoStream.getTracks().forEach(t => t.stop());
+                }
+                videoElement.style.display = 'none';
+                photoStage.style.display = 'flex';
+                reticleBox.style.display = 'none';
+                cameraDiagBanner.classList.add('hidden');
+
+                // If no photo loaded yet, prompt or load default sample
+                if (!photoPreview.getAttribute('src')) {
+                    loadSamplePage('atom');
+                } else {
+                    simulateScanDetection();
+                }
+
+            } else if (mode === 'workbench') {
+                activeModeBadge.textContent = "3D STUDIO WORKBENCH";
+                if (appState.videoStream) {
+                    appState.videoStream.getTracks().forEach(t => t.stop());
+                }
+                videoElement.style.display = 'none';
+                photoStage.style.display = 'none';
+                reticleBox.style.display = 'none';
+                cameraDiagBanner.classList.add('hidden');
+
+                // In studio mode, show model immediately
+                appState.isScanned = true;
+                updateModelVisibility();
+                updateStatusBadge(true);
+                showToast("3D Studio active. Drag with mouse/finger to inspect.");
+            }
+        }
+
+        // REQUIREMENT: When scanned, labels disappear automatically
+        function onTargetDetected() {
+            appState.isScanned = true;
+
+            // 1. Auto-hide labels
+            appState.labelsVisible = false;
+            applyLabelsVisibilityUI();
+
+            // 2. Update status and reticle
+            updateStatusBadge(true);
+            updateModelVisibility();
+
+            // 3. User feedback
+            showToast("Target page detected! Labels hidden for clean 3D viewing.");
+        }
+
+        // Simulate recognition match
+        function simulateScanDetection() {
+            if (!appState.isScanned) {
+                onTargetDetected();
+                scanTriggerText.textContent = "Target Locked (Click to Reset)";
+            } else {
+                // Reset to scanning state
+                appState.isScanned = false;
+                updateStatusBadge(false);
+                updateModelVisibility();
+                scanTriggerText.textContent = "Trigger Scan Match (Pop 3D Model)";
+                showToast("Reset to scanning mode.");
+            }
+        }
+
+        function updateStatusBadge(locked) {
+            if (locked) {
+                trackingStatusPill.className = "glass-panel px-3 py-1.5 rounded-full flex items-center space-x-2 border-emerald-500/50 bg-emerald-950/40 transition-colors";
+                statusIndicatorDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+                statusIndicatorText.className = "text-[11px] font-mono uppercase tracking-wider text-emerald-300";
+                statusIndicatorText.textContent = "Target Locked";
+                reticleBox.classList.add('opacity-40', 'scale-95');
+            } else {
+                trackingStatusPill.className = "glass-panel px-3 py-1.5 rounded-full flex items-center space-x-2 border-amber-500/40 transition-colors";
+                statusIndicatorDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping";
+                statusIndicatorText.className = "text-[11px] font-mono uppercase tracking-wider text-amber-300";
+                statusIndicatorText.textContent = "Searching Page...";
+                reticleBox.classList.remove('opacity-40', 'scale-95');
+            }
+        }
+
+        function updateModelVisibility() {
+            if (appState.currentMode === 'workbench') {
+                mainModelGroup.visible = true;
+            } else {
+                // In camera/photo mode, only show when recognized
+                mainModelGroup.visible = appState.isScanned;
+            }
+        }
+
+        // Manual User Toggle for Labels
+        function toggleLabelsState() {
+            appState.labelsVisible = !appState.labelsVisible;
+            applyLabelsVisibilityUI();
+
+            if (appState.labelsVisible) {
+                showToast("Labels & annotations visible");
+            } else {
+                showToast("Labels hidden (Clean 3D Model)");
+            }
+        }
+
+        function applyLabelsVisibilityUI() {
+            labelsGroup.visible = appState.labelsVisible;
+
+            if (appState.labelsVisible) {
                 textLabels.textContent = "Labels: On";
-                btnToggleLabels.classList.add('border-cyan-500/40', 'bg-cyan-950/40');
-                btnToggleLabels.classList.remove('border-slate-700', 'bg-slate-800/80');
+                btnLabelsToggle.classList.add('border-cyan-500/50', 'bg-cyan-950/40');
+                btnLabelsToggle.classList.remove('border-slate-700', 'bg-slate-900');
                 
                 iconLabels.setAttribute('data-lucide', 'eye');
                 iconLabels.classList.remove('text-amber-400');
                 iconLabels.classList.add('text-cyan-300');
             } else {
-                // Hide Labels
-                labelsContainer.setAttribute('animation__fade', 'property: scale; to: 0 0 0; dur: 250;');
-                setTimeout(() => {
-                    if (!state.labelsVisible) {
-                        labelsContainer.setAttribute('visible', 'false');
-                    }
-                }, 250);
-
-                // Update Button HUD
                 textLabels.textContent = "Labels: Off";
-                btnToggleLabels.classList.remove('border-cyan-500/40', 'bg-cyan-950/40');
-                btnToggleLabels.classList.add('border-slate-700', 'bg-slate-800/80');
+                btnLabelsToggle.classList.remove('border-cyan-500/50', 'bg-cyan-950/40');
+                btnLabelsToggle.classList.add('border-slate-700', 'bg-slate-900');
 
                 iconLabels.setAttribute('data-lucide', 'eye-off');
                 iconLabels.classList.remove('text-cyan-300');
@@ -594,116 +950,197 @@
             lucide.createIcons();
         }
 
-        // Toast feedback notification helper
-        let toastTimeout;
-        function showToast(message) {
-            clearTimeout(toastTimeout);
-            labelStatusToast.textContent = message;
-            labelStatusToast.classList.remove('opacity-0');
-            labelStatusToast.classList.add('opacity-100');
-
-            toastTimeout = setTimeout(() => {
-                labelStatusToast.classList.remove('opacity-100');
-                labelStatusToast.classList.add('opacity-0');
-            }, 3500);
+        // Model Scale Adjustment
+        function adjustModelScale(val) {
+            appState.scale = parseFloat(val);
+            mainModelGroup.scale.set(appState.scale, appState.scale, appState.scale);
         }
 
-        // Toggle electron rotation orbits
-        function toggleAnimation() {
-            state.isAnimationPaused = !state.isAnimationPaused;
-            const orbits = document.querySelectorAll('.orbit-anim');
+        // Pause/Resume orbit animation
+        function toggleOrbitAnimation() {
+            appState.animationRunning = !appState.animationRunning;
             const iconAnim = document.getElementById('icon-anim');
-
-            orbits.forEach(orbit => {
-                if (state.isAnimationPaused) {
-                    orbit.pause();
-                } else {
-                    orbit.play();
-                }
-            });
-
-            if (state.isAnimationPaused) {
-                iconAnim.setAttribute('data-lucide', 'play');
-                iconAnim.classList.remove('text-cyan-400');
-                iconAnim.classList.add('text-emerald-400');
-            } else {
+            
+            if (appState.animationRunning) {
                 iconAnim.setAttribute('data-lucide', 'pause');
                 iconAnim.classList.remove('text-emerald-400');
                 iconAnim.classList.add('text-cyan-400');
+                showToast("Animation resumed");
+            } else {
+                iconAnim.setAttribute('data-lucide', 'play');
+                iconAnim.classList.remove('text-cyan-400');
+                iconAnim.classList.add('text-emerald-400');
+                showToast("Animation paused");
             }
             lucide.createIcons();
         }
 
-        // Scale zoom slider
-        function updateScale(val) {
-            state.currentScale = val;
-            atomRoot.setAttribute('scale', `${val} ${val} ${val}`);
+        // Reset orientation & camera
+        function reset3DView() {
+            controls.reset();
+            camera.position.set(0, 0, 7);
+            document.getElementById('scale-slider').value = 1.0;
+            adjustModelScale(1.0);
+            mainModelGroup.rotation.set(0, 0, 0);
+            showToast("Camera & model orientation reset");
         }
 
-        // Reset orientation
-        function resetOrientation() {
-            atomRoot.setAttribute('rotation', '0 0 0');
-            document.getElementById('scale-slider').value = 0.85;
-            updateScale(0.85);
-            showToast("Model scale & position reset");
+        // File upload from user device (Mode 2)
+        function handleDirectFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                photoPreview.src = e.target.result;
+                switchToMode('photo');
+                setTimeout(() => {
+                    onTargetDetected();
+                }, 400);
+            };
+            reader.readAsDataURL(file);
         }
 
-        // Simulate Scan (Convenient for previewing when user has no physical printed target)
-        function toggleSimulationMode() {
-            state.isSimulationActive = !state.isSimulationActive;
+        // Load predefined textbook sample
+        function loadSamplePage(type) {
+            closeTargetLibraryModal();
             
-            if (state.isSimulationActive) {
-                // Pin the target anchor right in front of camera
-                targetAnchor.setAttribute('position', '0 0 -1.5');
-                targetAnchor.setAttribute('rotation', '15 0 0');
-                
-                handleTargetDetected();
-                simBtnText.textContent = "Exit Simulation";
-                showToast("Simulation mode active (model pinned in view)");
+            // Build dynamic SVG image card
+            let svgData;
+            if (type === 'atom') {
+                activeModelTitle.textContent = "Quantum Physics • Bohr Atom";
+                buildBohrAtomModel();
+                svgData = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="600" height="450" viewBox="0 0 600 450" style="background:#070b14; font-family:Inter,sans-serif;">
+                        <rect width="100%" height="100%" fill="#070b14"/>
+                        <rect x="20" y="20" width="560" height="410" rx="16" fill="#0d1424" stroke="#00f0ff" stroke-width="2" stroke-dasharray="8 6" opacity="0.7"/>
+                        <text x="50" y="70" fill="#00f0ff" font-size="20" font-weight="bold">PHYSICS 101: ATOMIC STRUCTURE</text>
+                        <text x="50" y="100" fill="#94a3b8" font-size="14">Figure 4.2: Quantized Bohr Orbitals</text>
+                        
+                        <!-- Center Diagram Mock -->
+                        <circle cx="300" cy="240" r="18" fill="#f43f5e" />
+                        <circle cx="300" cy="240" r="70" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="4 4" opacity="0.8"/>
+                        <circle cx="300" cy="240" r="120" fill="none" stroke="#00f0ff" stroke-width="2" stroke-dasharray="6 4" opacity="0.8"/>
+                        <circle cx="300" cy="240" r="160" fill="none" stroke="#a855f7" stroke-width="2" stroke-dasharray="8 4" opacity="0.8"/>
+
+                        <!-- Electrons -->
+                        <circle cx="370" cy="240" r="6" fill="#10b981"/>
+                        <circle cx="215" cy="155" r="7" fill="#00f0ff"/>
+                        <circle cx="438" cy="320" r="8" fill="#a855f7"/>
+
+                        <rect x="40" y="380" width="520" height="30" rx="6" fill="#1e293b"/>
+                        <text x="300" y="400" fill="#38bdf8" font-size="12" font-family="monospace" text-anchor="middle">AR TARGET MARKER: HIGH DENSITY ENTROPY</text>
+                    </svg>
+                `;
             } else {
-                targetAnchor.setAttribute('position', '0 0 0');
-                targetAnchor.setAttribute('rotation', '0 0 0');
-                handleTargetLost();
-                simBtnText.textContent = "Simulate Scan (No Physical Book)";
+                activeModelTitle.textContent = "Organic Chemistry • Molecular Matrix";
+                buildBohrAtomModel(); // Can be swapped with custom molecule
+                svgData = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="600" height="450" viewBox="0 0 600 450" style="background:#070b14; font-family:Inter,sans-serif;">
+                        <rect width="100%" height="100%" fill="#070b14"/>
+                        <rect x="20" y="20" width="560" height="410" rx="16" fill="#0d1424" stroke="#a855f7" stroke-width="2" stroke-dasharray="8 6" opacity="0.7"/>
+                        <text x="50" y="70" fill="#c084fc" font-size="20" font-weight="bold">CHEMISTRY 204: COVALENT BONDS</text>
+                        <text x="50" y="100" fill="#94a3b8" font-size="14">Figure 8.1: Hexagonal Benzene Ring System</text>
+                        
+                        <polygon points="300,160 370,200 370,280 300,320 230,280 230,200" fill="none" stroke="#a855f7" stroke-width="4"/>
+                        <circle cx="300" cy="240" r="40" fill="none" stroke="#a855f7" stroke-width="3" stroke-dasharray="6 6"/>
+
+                        <circle cx="300" cy="160" r="12" fill="#10b981"/>
+                        <circle cx="370" cy="200" r="12" fill="#00f0ff"/>
+                        <circle cx="370" cy="280" r="12" fill="#f43f5e"/>
+                        <circle cx="300" cy="320" r="12" fill="#eab308"/>
+                        <circle cx="230" cy="280" r="12" fill="#38bdf8"/>
+                        <circle cx="230" cy="200" r="12" fill="#ec4899"/>
+
+                        <rect x="40" y="380" width="520" height="30" rx="6" fill="#1e293b"/>
+                        <text x="300" y="400" fill="#c084fc" font-size="12" font-family="monospace" text-anchor="middle">AR TARGET MARKER: MOLECULAR DIAGRAM</text>
+                    </svg>
+                `;
             }
-        }
 
-        // Modal Management Helpers
-        function openTargetModal() {
-            const modal = document.getElementById('modal-target');
-            modal.classList.remove('hidden', 'pointer-events-none');
+            photoPreview.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(svgData);
+            switchToMode('photo');
             setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                modal.classList.add('opacity-100');
-            }, 10);
-        }
-
-        function closeTargetModal() {
-            const modal = document.getElementById('modal-target');
-            modal.classList.remove('opacity-100');
-            modal.classList.add('opacity-0');
-            setTimeout(() => {
-                modal.classList.add('hidden', 'pointer-events-none');
+                onTargetDetected();
             }, 300);
         }
 
-        function openInfoModal() {
-            const modal = document.getElementById('modal-info');
-            modal.classList.remove('hidden', 'pointer-events-none');
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                modal.classList.add('opacity-100');
-            }, 10);
+        function animateLoop() {
+            requestAnimationFrame(animateLoop);
+
+            // Rotate electron orbits if playing
+            if (appState.animationRunning) {
+                electronOrbits.forEach((orb) => {
+                    orb.angle += orb.speed;
+                    orb.electron.position.x = Math.cos(orb.angle) * orb.radius;
+                    orb.electron.position.y = Math.sin(orb.angle) * orb.radius;
+                });
+
+                if (nucleusCluster) {
+                    nucleusCluster.rotation.y += 0.008;
+                    nucleusCluster.rotation.x += 0.004;
+                }
+            }
+
+            // Update orbit controls
+            controls.update();
+
+            // Render 3D Frame
+            renderer.render(scene, camera);
         }
 
-        function closeInfoModal() {
-            const modal = document.getElementById('modal-info');
-            modal.classList.remove('opacity-100');
-            modal.classList.add('opacity-0');
-            setTimeout(() => {
-                modal.classList.add('hidden', 'pointer-events-none');
-            }, 300);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         }
+
+        // Toast Notification System
+        let toastTimer;
+        function showToast(text) {
+            clearTimeout(toastTimer);
+            toastPill.textContent = text;
+            toastPill.classList.remove('opacity-0');
+            toastPill.classList.add('opacity-100');
+
+            toastTimer = setTimeout(() => {
+                toastPill.classList.remove('opacity-100');
+                toastPill.classList.add('opacity-0');
+            }, 3600);
+        }
+
+        function openTargetLibraryModal() {
+            const modal = document.getElementById('modal-library');
+            modal.classList.remove('hidden', 'pointer-events-none');
+            setTimeout(() => modal.classList.add('opacity-100'), 10);
+        }
+
+        function closeTargetLibraryModal() {
+            const modal = document.getElementById('modal-library');
+            modal.classList.remove('opacity-100');
+            setTimeout(() => modal.classList.add('hidden', 'pointer-events-none'), 300);
+        }
+
+        function openHelpModal() {
+            const modal = document.getElementById('modal-help');
+            modal.classList.remove('hidden', 'pointer-events-none');
+            setTimeout(() => modal.classList.add('opacity-100'), 10);
+        }
+
+        function closeHelpModal() {
+            const modal = document.getElementById('modal-help');
+            modal.classList.remove('opacity-100');
+            setTimeout(() => modal.classList.add('hidden', 'pointer-events-none'), 300);
+        }
+
+        // Bootstrap on DOM ready
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initThreeEngine();
+
+            // Initiate camera handshake automatically, gracefully displaying fallback if restricted
+            requestCameraAccess();
+        });
     </script>
 </body>
 </html>
